@@ -11,6 +11,8 @@ const int echoPin = D5;       // Ultrasonic sensor Echo
 const int soilMoisturePin = A0; // Soil moisture sensor connected to A0
 bool manualOverride = false; // Flag to check if manual control is active
 
+unsigned long duration = 0;
+
 DNSServer dnsServer;
 IPAddress apIP(10, 0, 0, 1);
 ESP8266WebServer webServer(80);
@@ -82,6 +84,61 @@ void handleOptions() {
   webServer.send(204); // No Content
 }
 
+// Function to send distance data to the server
+void sendDistanceToServer(long distance) {
+ // if (WiFi.status() == WL_CONNECTED) { // Ensure WiFi is connected
+    WiFiClient client; // Create a WiFiClient instance
+    HTTPClient http;
+    String serverPath = "http://10.0.0.100/ARVEAATTFI/assets/php/storeDistance.php";
+    
+    // Start connection and send HTTP POST request
+    http.begin(client, serverPath); // Pass the WiFiClient instance and the URL
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    
+    // Prepare POST data
+    String postData = "distance=" + String(distance);
+    int httpResponseCode = http.POST(postData);
+    
+    if (httpResponseCode > 0) {
+      Serial.println("Data sent to server successfully");
+      Serial.println("Response: " + http.getString());
+    } else {
+      Serial.println("Error in sending POST request: " + String(httpResponseCode));
+    }
+    
+    http.end(); // Close connection
+  // } else {
+  //   Serial.println("WiFi not connected");
+  // }
+}
+
+
+void fetchDuration() {
+  // if (WiFi.status() == WL_CONNECTED) {
+    WiFiClient client;
+    HTTPClient http;
+    String serverPath = "http://10.0.0.100/ARVEAATTFI/assets/php/getDuration.php";
+
+    http.begin(client, serverPath);
+    int httpResponseCode = http.GET();
+
+    if (httpResponseCode > 0) {
+      String response = http.getString();
+      // Parse JSON response
+      int startIndex = response.indexOf("\"duration\":") + 11;
+      int endIndex = response.indexOf("}", startIndex);
+      String durationStr = response.substring(startIndex, endIndex);
+      duration = durationStr.toInt() * 1000;  // Convert to milliseconds
+      Serial.println("Duration fetched: " + String(duration) + " ms");
+    } else {
+      Serial.println("Error fetching duration: " + String(httpResponseCode));
+    }
+    http.end();
+  // } else {
+  //   Serial.println("WiFi not connected");
+  // }
+}
+
 void setup() {
   Serial.begin(9600);
 
@@ -114,43 +171,19 @@ void setup() {
   // Start web server
   webServer.begin();
   Serial.println("HTTP server started on 10.0.0.1");
+  fetchDuration();
 }
-
-// Function to send distance data to the server
-void sendDistanceToServer(long distance) {
- // if (WiFi.status() == WL_CONNECTED) { // Ensure WiFi is connected
-    WiFiClient client; // Create a WiFiClient instance
-    HTTPClient http;
-    String serverPath = "http://10.0.0.100/ARVEAATTFI/assets/php/storeDistance.php";
-    
-    // Start connection and send HTTP POST request
-    http.begin(client, serverPath); // Pass the WiFiClient instance and the URL
-    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-    
-    // Prepare POST data
-    String postData = "distance=" + String(distance);
-    int httpResponseCode = http.POST(postData);
-    
-    if (httpResponseCode > 0) {
-      Serial.println("Data sent to server successfully");
-      Serial.println("Response: " + http.getString());
-    } else {
-      Serial.println("Error in sending POST request: " + String(httpResponseCode));
-    }
-    
-    http.end(); // Close connection
-  // } else {
-  //   Serial.println("WiFi not connected");
-  // }
-}
-
 
 void loop() {
   dnsServer.processNextRequest();
   webServer.handleClient();
   
-  // Measure distance
-  long distance = measureDistance();
+  long distance = measureDistance(); // Measure distance
+  static unsigned long lastSendTime = 0; // Tracks the last time data was sent
+  unsigned long currentTime = millis();
+
+  static unsigned long lastSendTime_relay = 0; // Tracks the last time data was sent
+  unsigned long currentTime_relay = millis();
 
   // If distance is less than or equal to 5 cm, turn all relays ON
   if (distance <= 5) {
@@ -166,12 +199,18 @@ void loop() {
   }
 
   // Handle sending the measured distance to the server only every 5 minutes
-  static unsigned long lastSendTime = 0; // Tracks the last time data was sent
-  unsigned long currentTime = millis();
   if (currentTime - lastSendTime >= 300000) { // Check if 5 minues have passed
     lastSendTime = currentTime; // Update the last send time
     // Only call sendDistanceToServer here, ensuring it doesn't block other processes
     sendDistanceToServer(distance);
+  }
+
+  if (currentTime_relay - lastSendTime_relay >= duration) {
+    fetchDuration();
+    lastSendTime_relay = currentTime_relay; // Update the last send time
+    digitalWrite(relayPins[0], LOW);
+    delay(10000);
+    digitalWrite(relayPins[0], HIGH);
   }
 
   // Other functions can continue executing without delay
