@@ -90,6 +90,54 @@ function showAlert(message) {
     });
 }
 
+function showSweetAlert(title, text, icon, timer) {
+    let timerInterval;
+    Swal.fire({
+        title: title,
+        text: text,
+        icon: icon,
+        timer: timer,
+        timerProgressBar: true,
+        willClose: () => {
+            clearInterval(timerInterval);
+        },
+    });
+}
+
+
+function submitForm(formId) {
+    console.log(formId);
+    $(formId).submit(function (e) {
+        e.preventDefault();
+        var form = $(this);
+        var url = "assets/php/updateSettings.php";
+        $.ajax({
+            type: "POST",
+            url: url,
+            data: form.serialize(),
+            success: function (data) {
+                console.log(data);
+                var result = JSON.parse(data);
+                showSweetAlert(
+                    result.status.toUpperCase(),
+                    result.message,
+                    result.status,
+                    5000
+                );
+            },
+            error: function (data) {
+                var result = JSON.parse(data);
+                showSweetAlert(
+                    result.status.toUpperCase(),
+                    result.message,
+                    result.status,
+                    5000
+                );
+            },
+        });
+    });
+}
+
 // Attach event listeners to buttons
 $(document).ready(function () {
     $("#relay-1-on").click(function () {
@@ -107,11 +155,42 @@ $(document).ready(function () {
         processing: true,
         serverSide: true
     });
-    
 
+    // Fetch the distance every 5 seconds
+    setInterval(fetchSettingsAndDistance, 1000);
+    // Fetch once immediately on page load
+    fetchDistance();
+
+
+    $('a[data-bs-target="#settings"]').on("click", function () {
+        $.get("assets/php/getSettings.php", function (response) {
+            // Ensure the response is parsed
+            if (typeof response === "string") {
+                response = JSON.parse(response);
+            }
+
+            if (response.status === "success" && response.data) {
+                var settings = response.data;
+                console.log("Settings:", settings);
+
+                // Update the input for tankHeight
+                $('#tankHeight').val(settings.height);
+
+                // Update the input for tankVolume
+                $('#tankVolume').val(settings.volume);
+
+                // Update the select for wateringSelect
+                $('#wateringSelect').val(settings.duration);
+
+                console.log(settings.height, settings.volume, settings.duration);
+            } else {
+                console.error("Error: Data retrieval failed or no data available.");
+            }
+        }).fail(function (jqXHR, textStatus, errorThrown) {
+            console.error("Request failed:", textStatus, errorThrown);
+        });
+
+    });
+    submitForm("#update-form");
 });
 
-// Fetch the distance every 5 seconds
-setInterval(fetchSettingsAndDistance, 1000);
-// Fetch once immediately on page load
-fetchDistance();

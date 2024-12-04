@@ -4,24 +4,15 @@ header("Access-Control-Allow-Origin: *");
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
 header("Access-Control-Allow-Headers: Content-Type");
 
-// Database connection parameters
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "arveaattfi";
+require_once 'connection.php';
 
 try {
-    // Create a new PDO instance
-    $conn = new PDO("mysql:host=$servername;dbname=$dbname", $username, $password);
-    // Set the PDO error mode to exception
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     // Check if distance is received
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['distance'])) {
         $distance = $_POST['distance'];
 
         // Prepare SQL statement to insert data
-        $stmt = $conn->prepare("INSERT INTO distances (distance, timestamp) VALUES (:distance, NOW())");
+        $stmt = $db->prepare("INSERT INTO distances (distance, timestamp) VALUES (:distance, NOW())");
         $stmt->bindParam(':distance', $distance, PDO::PARAM_STR); // Bind as a string (you can also use PDO::PARAM_INT if you want)
 
         if ($stmt->execute()) {
@@ -37,5 +28,5 @@ try {
 }
 
 // Close the connection
-$conn = null;
+$db = null;
 ?>

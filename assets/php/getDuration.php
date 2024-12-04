@@ -1,17 +1,10 @@
 <?php
-// Database connection details
-$host = "localhost";
-$username = "root";
-$password = "";
-$dbname = "arveaattfi";
+require_once 'connection.php';
 
 try {
-    // Establish a connection to the database
-    $conn = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
     // Query to fetch the settings
-    $stmt = $conn->query("SELECT duration FROM settings WHERE username = 'admin' AND password = 'admin'");
+    $stmt = $db->query("SELECT * FROM `settings` WHERE `id` = 1");
+
     $settings = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if ($settings) {
